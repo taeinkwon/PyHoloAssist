@@ -6,7 +6,8 @@ from sklearn.neighbors import NearestNeighbors
 import tqdm
 import sys
 import shutil
-from ffprobe import FFProbe
+# from ffprobe import FFProbe
+from fractions import Fraction
 
 axis_transform = np.linalg.inv(
     np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]]))
@@ -150,16 +151,16 @@ def get_eye_gaze_point(gaze_data, dist):
 
     return point[:3]
 
-def get_framerate(filename):
-    metadata=FFProbe(filename)
-    for stream in metadata.streams:
-        if stream.is_video():
-            #print("stream",stream.__dir__())
-            print('Stream contains {} frames.'.format(stream.framerate))
-            framerate = float(stream.framerate)
-            frame_num = int(stream.frames())
-            
-    return framerate, frame_num
+# def get_framerate(filename):
+#     metadata=FFProbe(filename)
+#     for stream in metadata.streams:
+#         if stream.is_video():
+#             #print("stream",stream.__dir__())
+#             print('Stream contains {} frames.'.format(stream.framerate))
+#             framerate = float(stream.framerate)
+#             frame_num = int(stream.frames())
+#             
+#     return framerate, frame_num
 
 
 
@@ -212,12 +213,19 @@ def main():
         end_time = int(lines[1])
         
 
-    frame_rate, frame_num = get_framerate(os.path.join(base_path,"Video_pitchshift.mp4"))
+    # frame_rate, frame_num = get_framerate(os.path.join(base_path,"Video_pitchshift.mp4"))
+    # FIX 1: FFProbe does not seem to give correct fps. Use cv2 instead
+    cap = cv2.VideoCapture(os.path.join(base_path,"Video_pitchshift.mp4"))
+    frame_rate = cap.get(cv2.CAP_PROP_FPS)
+    frame_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    frame_rate_fraction = Fraction(frame_rate).limit_denominator()
     img_timing_array = []
     for ii in range(frame_num):
-        img_timing_array.append(int(start_time + ii * (1/frame_rate)* 10**7))
-        
-    
+        # FIX 2: reduce floating point calculation error.
+        # img_timing_array.append(int(start_time + ii * (1/frame_rate)* 10**7))
+        frame_ticks = (ii * frame_rate_fraction.denominator * 10**7) // frame_rate_fraction.numerator
+        img_timing_array.append(start_time + frame_ticks)
     
     #print("img_timing_array",img_timing_array[-1] - end_time)
     
